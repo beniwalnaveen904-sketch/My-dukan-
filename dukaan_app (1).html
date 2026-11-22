@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dukaan Khata & Stock</title>
+<style>
+  body { font-family: sans-serif; background: #f1f5f9; margin: 0; padding: 12px 12px 76px 12px; color: #0f172a; }
+  .topbar { background: #0f172a; color: #fff; padding: 14px; border-radius: 12px; margin-bottom: 10px; }
+  .topbar h2 { margin: 0 0 4px 0; font-size: 18px; }
+  .topbar small { color: #cbd5e1; }
+  .search-box { width: 100%; padding: 11px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 15px; box-sizing: border-box; background: #fff; margin-bottom: 10px; }
+  .card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  h3 { margin: 0 0 10px 0; font-size: 16px; }
+  label { display: block; font-size: 13px; font-weight: bold; color: #334155; margin-top: 8px; }
+  input, select, button.btn { width: 100%; padding: 10px; margin-top: 4px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 15px; box-sizing: border-box; }
+  button.btn { background: #16a34a; color: #fff; border: none; font-weight: bold; margin-top: 12px; cursor: pointer; }
+  button.btn-blue { background: #2563eb; }
+  button.btn-dark { background: #334155; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #cbd5e1; display: grid; grid-template-columns: repeat(4, 1fr); z-index: 99; }
+  .nav-btn { padding: 10px 4px; border: none; background: none; font-size: 12px; font-weight: bold; color: #475569; cursor: pointer; }
+  .nav-btn.active { color: #16a34a; border-top: 3px solid #16a34a; background: #f0fdf4; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
+  .stat b { display: block; font-size: 16px; margin-top: 4px; }
+  .alert-warn { background: #fffbeb; border-left: 5px solid #d97706; color: #92400e; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; }
+  .alert-ok { background: #f0fdf4; border-left: 5px solid #16a34a; color: #166534; padding: 10px; border-radius: 8px; font-size: 14px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+  .row:last-child { border-bottom: none; }
+  .del { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; cursor: pointer; }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: bold; }
+  .t-green { background: #dcfce7; color: #166534; }
+  .t-red { background: #fee2e2; color: #991b1b; }
+  .t-amber { background: #fef3c7; color: #92400e; }
+  .muted { color: #64748b; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h2>दुकान ऐप (होम • खरीद-बिक्री • खाता)</h2>
+  <small id="topSub">ग्राहक बकाया, सप्लायर देनदारी और स्टॉक</small>
+</div>
+
+<!-- पेज 1: होम -->
+<div id="homePage" class="page active">
+  <input id="globalSearch" class="search-box" type="text" placeholder="🔍 सामान या ग्राहक का नाम सर्च करें..." oninput="renderAll()" />
+  <div id="searchResultCard" class="card" style="display:none;">
+    <h3>सर्च नतीजा</h3>
+    <div id="searchResultBody"></div>
+  </div>
+
+  <div class="card">
+    <h3>ग्राहक न आने का अलर्ट</h3>
+    <label>कितने दिन से न आए ग्राहक को अलर्ट दिखाना है?</label>
+    <input id="inactiveDays" type="number" min="1" value="15" onchange="renderAll()" />
+    <div id="inactiveAlerts" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card">
+    <h3>कुल हिसाब</h3>
+    <div class="grid2">
+      <div class="stat"><span class="muted">ग्राहकों से लेने हैं</span><b id="hCustDue" style="color:#15803d;">₹0</b></div>
+      <div class="stat"><span class="muted">सप्लायर को देने हैं</span><b id="hSuppDue" style="color:#b91c1c;">₹0</b></div>
+      <div class="stat"><span class="muted">कुल बिक्री</span><b id="hTotalSales">₹0</b></div>
+      <div class="stat"><span class="muted">कुल मुनाफ़ा/घाटा</span><b id="hProfit">₹0</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- पेज 2: खरीद / बिक्री -->
+<div id="tradePage" class="page">
+  <div class="card">
+    <h3>ग्राहक को माल बेचें</h3>
+    <label>ग्राहक का नाम</label>
+    <input id="sCust" type="text" placeholder="जैसे: रमेश / मोहन" />
+    <label>सामान चुनें</label>
+    <select id="sItem" onchange="previewSale()"></select>
+    <label>मात्रा</label>
+    <input id="sQty" type="number" min="1" placeholder="कितने पीस/पैकेट/पुड़िया" oninput="previewSale()" />
+    <label>भुगतान</label>
+    <select id="sMode">
+      <option value="नकद">नकद</option>
+      <option value="उधार">उधार (ग्राहक से लेने हैं)</option>
+    </select>
+    <div id="sPreview" class="muted" style="margin-top:8px;"></div>
+    <button class="btn btn-blue" onclick="doSale()">बिक्री दर्ज करें</button>
+  </div>
+
+  <div class="card">
+    <h3>सप्लायर से माल खरीदें (खरीद / बाकी)</h3>
+    <label>सप्लायर का नाम</label>
+    <input id="pSupp" type="text" placeholder="जैसे: गुप्ता ट्रेडर्स" />
+    <label>सामान का नाम</label>
+    <input id="pItem" type="text" placeholder="जैसे: चाय पत्ती, चीनी" />
+    <label>मात्रा</label>
+    <input id="pQty" type="number" min="1" placeholder="कितने पीस/पैकेट/पुड़िया" />
+    <label>इकाई</label>
+    <input id="pUnit" type="text" value="पुड़िया" />
+    <label>खरीद रेट (प्रति इकाई ₹)</label>
+    <input id="pBuy" type="number" step="0.01" min="0" placeholder="जैसे: 10" />
+    <label>बिक्री रेट (प्रति इकाई ₹)</label>
+    <input id="pSell" type="number" step="0.01" min="0" placeholder="जैसे: 13" />
+    <label>सप्लायर को कितना दिया और कितना बाकी है?</label>
+    <input id="pPaid" type="number" step="0.01" min="0" placeholder="अभी कितने ₹ दिए (बाकी अपने आप जुड़ेगा)" />
+    <button class="btn" onclick="doPurchase()">खरीद स्टॉक में जोड़ें</button>
+  </div>
+</div>
+
+<!-- पेज 3: स्टॉक -->
+<div id="stockPage" class="page">
+  <div class="card">
+    <h3>नया सामान जोड़ें / अपडेट करें</h3>
+    <label>सामान का नाम</label>
+    <input id="nName" type="text" placeholder="सामान का नाम" />
+    <label>मात्रा</label>
+    <input id="nQty" type="number" min="0" placeholder="मात्रा" />
+    <label>इकाई</label>
+    <input id="nUnit" type="text" value="पीस" />
+    <label>खरीद रेट ₹ / बिक्री रेट ₹</label>
+    <div class="grid2">
+      <input id="nBuy" type="number" step="0.01" min="0" placeholder="खरीद ₹" />
+      <input id="nSell" type="number" step="0.01" min="0" placeholder="बिक्री ₹" />
+    </div>
+    <label>कम सीमा (0 = अलर्ट नहीं)</label>
+    <input id="nMin" type="number" min="0" value="0" />
+    <label>श्रेणी</label>
+    <select id="nSeason">
+      <option value="regular">पूरे साल चलने वाला</option>
+      <option value="seasonal">सीज़नल (सीज़न में ज़्यादा, बाकी समय कम)</option>
+    </select>
+    <button class="btn" onclick="saveStock()">स्टॉक सेव करें</button>
+  </div>
+
+  <div class="card">
+    <h3>सामान की लिस्ट (रखना बंद हो तो डिलीट करें)</h3>
+    <div id="stockList"></div>
+  </div>
+</div>
+
+<!-- पेज 4: ग्राहक व सप्लायर खाता -->
+<div id="khataPage" class="page">
+  <div class="card">
+    <h3>ग्राहक बकाया (किससे कितने रुपये लेने हैं)</h3>
+    <div id="custList"></div>
+  </div>
+
+  <div class="card">
+    <h3>सप्लायर बकाया (किसको कितने रुपये देने हैं)</h3>
+    <div id="suppList"></div>
+  </div>
+
+  <div class="card">
+    <h3>हाल की खरीद-बिक्री एंट्री</h3>
+    <div id="recentLog"></div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <button class="nav-btn active" onclick="showPage('homePage', this)">होम</button>
+  <button class="nav-btn" onclick="showPage('tradePage', this)">खरीद/बिक्री</button>
+  <button class="nav-btn" onclick="showPage('stockPage', this)">स्टॉक</button>
+  <button class="nav-btn" onclick="showPage('khataPage', this)">खाता</button>
+</div>
+
+<script>
+const KEY = "dukaan_full_v1";
+const DAY_MS = 86400000;
+
+let db = JSON.parse(localStorage.getItem(KEY)) || {
+  items: {
+    "चाय पत्ती": { qty: 18, unit: "पुड़िया", buy: 10, sell: 13, min: 5, season: "regular" },
+    "चीनी": { qty: 25, unit: "पैकेट", buy: 40, sell: 46, min: 6, season: "regular" }
+  },
+  customers: {
+    // "रमेश": { due: 120, lastVisit: Date.now() - (20 * DAY_MS) }
+  },
+  suppliers: {
+    // "गुप्ता ट्रेडर्स": { due: 500 }
+  },
+  logs: []
+};
+
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(db));
+}
+
+function showPage(id, btn) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  btn.classList.add("active");
+  renderAll();
+}
+
+function previewSale() {
+  const name = document.getElementById("sItem").value;
+  const qty = parseFloat(document.getElementById("sQty").value) || 0;
+  const el = document.getElementById("sPreview");
+  if (!name || !db.items[name] || qty <= 0) { el.textContent = ""; return; }
+  const it = db.items[name];
+  const amt = qty * it.sell;
+  const mgn = (it.sell - it.buy) * qty;
+  el.innerHTML = `रकम: <b>₹${amt.toFixed(2)}</b> | मुनाफ़ा/घाटा: <b>₹${mgn.toFixed(2)}</b>`;
+}
+
+function doSale() {
+  const cust = (document.getElementById("sCust").value || "सामान्य ग्राहक").trim();
+  const name = document.getElementById("sItem").value;
+  const qty = parseFloat(document.getElementById("sQty").value);
+  const mode = document.getElementById("sMode").value;
+  if (!name || !db.items[name]) return alert("सामान चुनें।");
+  if (!qty || qty <= 0) return alert("मात्रा डालें।");
+  const it = db.items[name];
+  if (qty > it.qty) return alert(`सिर्फ़ ${it.qty} ${it.unit} बचे हैं।`);
+
+  it.qty -= qty;
+  const amt = qty * it.sell;
+  const profit = (it.sell - it.buy) * qty;
+
+  if (!db.customers[cust]) db.customers[cust] = { due: 0, lastVisit: Date.now() };
+  db.customers[cust].lastVisit = Date.now();
+  if (mode === "उधार") db.customers[cust].due += amt;
+
+  db.logs.unshift({
+    type: "बिक्री", party: cust, item: name, qty, unit: it.unit,
+    mode, amt, profit, time: Date.now()
+  });
+
+  document.getElementById("sQty").value = "";
+  document.getElementById("sPreview").textContent = "";
+  save();
+  renderAll();
+  alert(`बिक्री दर्ज: ${qty} ${it.unit} ${name} (${mode}) | बचा स्टॉक: ${it.qty} ${it.unit}`);
+}
+
+function doPurchase() {
+  const supp = (document.getElementById("pSupp").value || "सामान्य सप्लायर").trim();
+  const name = document.getElementById("pItem").value.trim();
+  const qty = parseFloat(document.getElementById("pQty").value);
+  const unit = (document.getElementById("pUnit").value || "पीस").trim();
+  const buy = parseFloat(document.getElementById("pBuy").value) || 0;
+  const sell = parseFloat(document.getElementById("pSell").value) || buy;
+  const paid = parseFloat(document.getElementById("pPaid").value) || 0;
+
+  if (!name || !qty || qty <= 0) return alert("सामान का नाम और मात्रा डालें।");
+
+  if (db.items[name]) {
+    db.items[name].qty += qty;
+    db.items[name].buy = buy;
+    db.items[name].sell = sell;
+    db.items[name].unit = unit;
+  } else {
+    db.items[name] = { qty, unit, buy, sell, min: 0, season: "regular" };
+  }
+
+  const totalCost = qty * buy;
+  const remainingDue = Math.max(0, totalCost - paid);
+  if (!db.suppliers[supp]) db.suppliers[supp] = { due: 0 };
+  db.suppliers[supp].due += remainingDue;
+
+  db.logs.unshift({
+    type: "खरीद", party: supp, item: name, qty, unit,
+    mode: remainingDue > 0 ? `बाकी ₹${remainingDue.toFixed(0)}` : "पूरा भुगतान",
+    amt: totalCost, profit: 0, time: Date.now()
+  });
+
+  document.getElementById("pItem").value = "";
+  document.getElementById("pQty").value = "";
+  document.getElementById("pPaid").value = "";
+  save();
+  renderAll();
+  alert(`खरीद जुड़ी: ${qty} ${unit} ${name} | सप्लायर को बाकी: ₹${remainingDue.toFixed(0)}`);
+}
+
+function saveStock() {
+  const name = document.getElementById("nName").value.trim();
+  const qty = parseFloat(document.getElementById("nQty").value);
+  const unit = (document.getElementById("nUnit").value || "पीस").trim();
+  const buy = parseFloat(document.getElementById("nBuy").value) || 0;
+  const sell = parseFloat(document.getElementById("nSell").value) || 0;
+  const min = parseFloat(document.getElementById("nMin").value) || 0;
+  const season = document.getElementById("nSeason").value;
+  if (!name || isNaN(qty) || qty < 0) return alert("नाम और मात्रा सही भरें।");
+
+  if (db.items[name]) {
+    db.items[name].qty += qty;
+    db.items[name].unit = unit;
+    db.items[name].buy = buy;
+    db.items[name].sell = sell;
+    db.items[name].min = min;
+    db.items[name].season = season;
+  } else {
+    db.items[name] = { qty, unit, buy, sell, min, season };
+  }
+
+  document.getElementById("nName").value = "";
+  document.getElementById("nQty").value = "";
+  save();
+  renderAll();
+  alert(`'${name}' सेव हो गया।`);
+}
+
+function deleteItem(name) {
+  if (confirm(`क्या '${name}' को लिस्ट से हटाना है? (अब यह सामान नहीं रखा जाएगा)`)) {
+    delete db.items[name];
+    save();
+    renderAll();
+  }
+}
+
+function settleCustomer(name) {
+  const amt = parseFloat(prompt(`${name} से कितने रुपये मिले? (बकाया: ₹${db.customers[name].due})`));
+  if (!isNaN(amt) && amt > 0) {
+    db.customers[name].due = Math.max(0, db.customers[name].due - amt);
+    db.customers[name].lastVisit = Date.now();
+    save();
+    renderAll();
+  }
+}
+
+function settleSupplier(name) {
+  const amt = parseFloat(prompt(`${name} को कितने रुपये दिए? (बकाया: ₹${db.suppliers[name].due})`));
+  if (!isNaN(amt) && amt > 0) {
+    db.suppliers[name].due = Math.max(0, db.suppliers[name].due - amt);
+    save();
+    renderAll();
+  }
+}
+
+function renderAll() {
+  // Dropdown
+  const sel = document.getElementById("sItem");
+  const prev = sel.value;
+  sel.innerHTML = "";
+  Object.entries(db.items).forEach(([n, it]) => {
+    const o = document.createElement("option");
+    o.value = n;
+    o.textContent = `${n} — बचा: ${it.qty} ${it.unit} (₹${it.sell})`;
+    sel.appendChild(o);
+  });
+  if (prev && db.items[prev]) sel.value = prev;
+  previewSale();
+
+  // Search
+  const q = (document.getElementById("globalSearch").value || "").trim().toLowerCase();
+  const sCard = document.getElementById("searchResultCard");
+  const sBody = document.getElementById("searchResultBody");
+  if (q) {
+    const matchedItems = Object.entries(db.items).filter(([n]) => n.toLowerCase().includes(q));
+    const matchedCust = Object.entries(db.customers).filter(([n]) => n.toLowerCase().includes(q));
+    const matchedSupp = Object.entries(db.suppliers).filter(([n]) => n.toLowerCase().includes(q));
+    let html = "";
+    matchedItems.forEach(([n, it]) => {
+      html += `<div class="row"><div><b>सामान: ${n}</b> — बचा: <b>${it.qty} ${it.unit}</b> | खरीद ₹${it.buy}, बिक्री ₹${it.sell}</div></div>`;
+    });
+    matchedCust.forEach(([n, c]) => {
+      html += `<div class="row"><div><b>ग्राहक: ${n}</b> — आपसे लेने हैं: <b>₹${c.due.toFixed(0)}</b></div></div>`;
+    });
+    matchedSupp.forEach(([n, s]) => {
+      html += `<div class="row"><div><b>सप्लायर: ${n}</b> — इनको देने हैं: <b>₹${s.due.toFixed(0)}</b></div></div>`;
+    });
+    sBody.innerHTML = html || `<div class="muted">कुछ नहीं मिला।</div>`;
+    sCard.style.display = "block";
+  } else {
+    sCard.style.display = "none";
+  }
+
+  // Inactive customers alert
+  const daysLimit = parseInt(document.getElementById("inactiveDays").value, 10) || 15;
+  const now = Date.now();
+  const inactive = [];
+  Object.entries(db.customers).forEach(([n, c]) => {
+    const daysAgo = Math.floor((now - (c.lastVisit || now)) / DAY_MS);
+    if (daysAgo >= daysLimit) inactive.push({ name: n, daysAgo, due: c.due });
+  });
+  const inactBox = document.getElementById("inactiveAlerts");
+  if (inactive.length) {
+    inactBox.innerHTML = inactive.map(x =>
+      `<div class="alert-warn">⚠️ <b>${x.name}</b> ${x.daysAgo} दिन से दुकान नहीं आए हैं${x.due > 0 ? ` (बकाया ₹${x.due.toFixed(0)})` : ""}.</div>`
+    ).join("");
+  } else {
+    inactBox.innerHTML = `<div class="alert-ok">✅ ${daysLimit} दिन से ज़्यादा समय से न आने वाला कोई ग्राहक नहीं मिला।</div>`;
+  }
+
+  // KPIs
+  const custDue = Object.values(db.customers).reduce((a, b) => a + (b.due || 0), 0);
+  const suppDue = Object.values(db.suppliers).reduce((a, b) => a + (b.due || 0), 0);
+  const salesLogs = db.logs.filter(x => x.type === "बिक्री");
+  const totalSales = salesLogs.reduce((a, b) => a + (b.amt || 0), 0);
+  const totalProfit = salesLogs.reduce((a, b) => a + (b.profit || 0), 0);
+
+  document.getElementById("hCustDue").textContent = `₹${custDue.toFixed(0)}`;
+  document.getElementById("hSuppDue").textContent = `₹${suppDue.toFixed(0)}`;
+  document.getElementById("hTotalSales").textContent = `₹${totalSales.toFixed(0)}`;
+  const pEl = document.getElementById("hProfit");
+  pEl.textContent = (totalProfit >= 0 ? "+" : "-") + `₹${Math.abs(totalProfit).toFixed(0)}`;
+  pEl.style.color = totalProfit >= 0 ? "#15803d" : "#b91c1c";
+
+  // Stock List
+  const stList = document.getElementById("stockList");
+  const stEntries = Object.entries(db.items);
+  stList.innerHTML = stEntries.length ? stEntries.map(([n, it]) => {
+    const mgn = it.sell - it.buy;
+    const low = it.min > 0 && it.qty <= it.min;
+    const sTag = it.season === "seasonal" ? `<span class="tag t-amber">सीज़नल</span>` : "";
+    const lTag = low ? `<span class="tag t-red">कम</span>` : `<span class="tag t-green">ठीक</span>`;
+    return `<div class="row">
+      <div>
+        <b>${n}</b> ${lTag} ${sTag}<br/>
+        <span class="muted">बचा: <b>${it.qty} ${it.unit}</b> | खरीद ₹${it.buy} • बिक्री ₹${it.sell} • मार्जिन ₹${mgn.toFixed(2)}</span>
+      </div>
+      <button class="del" onclick="deleteItem('${n.replace(/'/g, "\'")}')">हटाएँ</button>
+    </div>`;
+  }).join("") : `<div class="muted">स्टॉक खाली है।</div>`;
+
+  // Customers & Suppliers
+  const cEntries = Object.entries(db.customers);
+  document.getElementById("custList").innerHTML = cEntries.length ? cEntries.map(([n, c]) => {
+    const dAgo = Math.floor((now - (c.lastVisit || now)) / DAY_MS);
+    return `<div class="row">
+      <div>
+        <b>${n}</b> — लेने हैं: <b>₹${c.due.toFixed(0)}</b><br/>
+        <span class="muted">आखिरी बार: ${dAgo === 0 ? "आज" : dAgo + " दिन पहले"}</span>
+      </div>
+      <button class="del" style="background:#dcfce7;color:#166534;border-color:#86efac;" onclick="settleCustomer('${n.replace(/'/g, "\'")}')">जमा करें</button>
+    </div>`;
+  }).join("") : `<div class="muted">अभी कोई ग्राहक दर्ज नहीं है।</div>`;
+
+  const sEntries = Object.entries(db.suppliers);
+  document.getElementById("suppList").innerHTML = sEntries.length ? sEntries.map(([n, s]) => {
+    return `<div class="row">
+      <div><b>${n}</b> — देने हैं: <b>₹${s.due.toFixed(0)}</b></div>
+      <button class="del" style="background:#dbeafe;color:#1e40af;border-color:#93c5fd;" onclick="settleSupplier('${n.replace(/'/g, "\'")}')">भुगतान करें</button>
+    </div>`;
+  }).join("") : `<div class="muted">अभी कोई सप्लायर बकाया नहीं है।</div>`;
+
+  // Recent Logs
+  document.getElementById("recentLog").innerHTML = db.logs.length ? db.logs.slice(0, 20).map(l => {
+    return `<div class="row">
+      <div>
+        <b>[${l.type}] ${l.party}</b> — ${l.qty} ${l.unit} <b>${l.item}</b><br/>
+        <span class="muted">रकम ₹${l.amt.toFixed(0)} | ${l.mode}</span>
+      </div>
+    </div>`;
+  }).join("") : `<div class="muted">अभी कोई एंट्री नहीं है।</div>`;
+}
+
+renderAll();
+</script>
+</body>
+</html>
